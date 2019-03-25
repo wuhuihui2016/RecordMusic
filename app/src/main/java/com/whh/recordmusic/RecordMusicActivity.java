@@ -21,6 +21,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * MediaRecorder录制音频
+ */
 public class RecordMusicActivity extends Activity implements View.OnClickListener {
 
     private TextView statusTextView, amplitudeTextView, info;

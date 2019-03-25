@@ -24,6 +24,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * AudioRecord录制音频不接收麦克风声音
+ */
 public class RecordMusicActivity2 extends Activity implements View.OnClickListener {
 
     private TextView statusTextView, amplitudeTextView, info;
@@ -34,6 +37,8 @@ public class RecordMusicActivity2 extends Activity implements View.OnClickListen
     private RecordAmplitude recordAmplitude; //录制状态时的刷新页面
     private MediaPlayer player; //播放器
     private File audioFile; //录制完成后保存的AMR文件
+
+    private final String TAG = "RecordMusic===>>";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -101,6 +106,19 @@ public class RecordMusicActivity2 extends Activity implements View.OnClickListen
      * 初始化界面View
      */
     private void initView() {
+
+        Log.i(TAG + "initView", Environment.getExternalStorageDirectory() + "/recordMusic");
+        Log.i(TAG + "存放录制音频的目录", Environment.getExternalStorageDirectory() + "/recordMusic");
+
+        float scale = getResources().getDisplayMetrics().density;
+        float scaledDensity = getResources().getDisplayMetrics().scaledDensity;
+
+        Log.i(TAG + "scale", scale + "");
+        Log.i(TAG + "density", scaledDensity + "");
+        Log.i(TAG + "顶部大标题", 36 / scale + 0.5f + "");
+        Log.i(TAG + "正文", 32 / scale + 0.5f + "");
+
+        
         statusTextView = (TextView) findViewById(R.id.statusTextView);
         statusTextView.setText("Ready");
         amplitudeTextView = (TextView) findViewById(R.id.amplitudeTextView);
@@ -126,8 +144,8 @@ public class RecordMusicActivity2 extends Activity implements View.OnClickListen
                 return;
             }
 
-
             try {
+                Log.i(TAG, "startRecording开始录制。。。。");
                 int kSampleRate = 44100;
                 int kChannelMode = AudioFormat.CHANNEL_IN_STEREO;
                 int kEncodeFormat = AudioFormat.ENCODING_PCM_16BIT;
@@ -155,17 +173,18 @@ public class RecordMusicActivity2 extends Activity implements View.OnClickListen
                 int num = 0;
                 while (isRecording) {
                     num = mRecord.read(buffer, 0, kFrameSize);
-                    Log.d("isRecording", "buffer = " + buffer.toString() + ", num = " + num);
+                    Log.d(TAG + "isRecording", "buffer = " + buffer.toString() + ", num = " + num);
                     os.write(buffer, 0, num);
                 }
 
-                Log.d("isRecording", "exit loop");
+                Log.d(TAG + "isRecording", "exit loop");
                 os.close();
 
                 mRecord.stop();
                 mRecord.release();
                 mRecord = null;
-                Log.d("isRecording", "clean up");
+                Log.d(TAG + "isRecording", "clean up");
+                Log.i(TAG + "audioRecord", "AudioRecord released!");
 
                 recordAmplitude = new RecordAmplitude();
                 recordAmplitude.execute();
@@ -177,9 +196,8 @@ public class RecordMusicActivity2 extends Activity implements View.OnClickListen
                 startRecording.setEnabled(false);
             } catch (IOException e) {
                 e.printStackTrace();
-                Log.e("isRecording", "Dump PCM to file failed");
+                Log.e(TAG + "isRecording", "Dump PCM to file failed");
             }
-
 
         } else if (v == stopRecording) { //停止录制
             isRecording = false;
