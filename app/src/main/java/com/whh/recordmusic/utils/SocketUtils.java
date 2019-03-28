@@ -15,6 +15,7 @@ import java.io.PrintWriter;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.util.Enumeration;
@@ -37,8 +38,8 @@ public class SocketUtils {
      * @param inetAddress  另一手机的IP，默认端口5555
      * @param connListener
      */
-    public static void connect(final String inetAddress, final OnConnectListener connListener,
-                               final OnMessageListener msgListener) {
+    public static void addConnectListener(final String inetAddress,
+                                          final OnConnectListener connListener) {
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -48,40 +49,55 @@ public class SocketUtils {
                     if (target != null) {
                         connListener.onConnect(true);
                         targetIP = inetAddress;
-                        sendMsg(inetAddress + " connect is sucessful!", new OnMessageListener() {
-                            @Override
-                            public void sendMsg(boolean isSucessful) {
-                                if (isSucessful) {
-                                    //接收消息
-                                    while (target.isConnected()) {
-                                        try {
-                                            InputStream in = target.getInputStream();
-                                            //得到的是16位进制数，需要解析
-                                            byte[] bt = new byte[50];
-                                            in.read(bt);
-                                            String message = new String(bt, "UTF-8");
-                                            if (message != null) {
-                                                msgListener.receive(message);
-                                            }
-                                        } catch (IOException e) {
-                                            e.printStackTrace();
-                                        }
-
-                                    }
-                                }
-                            }
-
-                            @Override
-                            public void receive(String message) {
-
-                            }
-                        });
-
-
-
                     } else connListener.onConnect(false);
                 } catch (IOException e) {
                     e.printStackTrace();
+                }
+            }
+        }).start();
+    }
+
+    /**
+     * 本机启动后，开始监听其他手机发来的请求或消息
+     * socket监听数据 listen()
+     */
+    public static void addMessageListener(final OnConnectListener connListener,
+                                          final OnMessageListener msgListener) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                Socket socket = null;
+                try {
+                    ServerSocket server = new ServerSocket(port);
+                    Log.i(TAG, "本机已启动，等待客户端连接...");
+                    socket = server.accept(); //接收请求 accept()
+                    if (socket != null) {
+                        try {
+                            connListener.onConnect(true);
+                            InputStream in = target.getInputStream();
+                            //得到的是16位进制数，需要解析
+                            byte[] bt = new byte[50];
+                            in.read(bt);
+                            String message = new String(bt, "UTF-8");
+                            if (message != null) {
+                                msgListener.receive(message);
+                            }
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+
+                    } else {
+                        connListener.onConnect(false);
+                        Log.i(TAG, "socket is null");
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    try {
+                        socket.close();
+                        Log.i(TAG, "关闭连接");
+                    } catch (IOException e1) {
+                        e1.printStackTrace();
+                    }
                 }
             }
         }).start();
@@ -169,12 +185,11 @@ public class SocketUtils {
 
     //隐藏键盘
     public static void hideInput(Activity activity) {
-        ((InputMethodManager)activity.getSystemService(Context.INPUT_METHOD_SERVICE))
+        ((InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE))
                 .hideSoftInputFromWindow(
                         activity.getCurrentFocus().getWindowToken(),
                         InputMethodManager.HIDE_NOT_ALWAYS);
     }
-
 
 
 }

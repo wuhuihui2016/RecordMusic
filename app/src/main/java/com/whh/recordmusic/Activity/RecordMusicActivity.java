@@ -8,7 +8,6 @@ import android.media.MediaRecorder;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
-import android.os.ParcelFileDescriptor;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
@@ -18,11 +17,9 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.whh.recordmusic.R;
-import com.whh.recordmusic.utils.Utils;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -129,13 +126,7 @@ public class RecordMusicActivity extends Activity implements View.OnClickListene
 
         } else if (v == recordingAndSend) { //录制并发送
             initRecorder();
-            if (Utils.ID == Utils.CLIENT) {
-                statusTextView.setText("recording with sending");
-                //设置发送对象，发送音频段
-                Socket receiver = Utils.connSocket;
-                ParcelFileDescriptor pfd = ParcelFileDescriptor.fromSocket(receiver);
-                recorder.setOutputFile(pfd.getFileDescriptor());
-            }
+            statusTextView.setText("recording with sending");
         } else if (v == stopRecording) { //停止录制
             isRecording = false;
 //            recordAmplitude.cancel(true);

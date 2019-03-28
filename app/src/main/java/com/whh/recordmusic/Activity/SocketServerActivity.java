@@ -15,8 +15,8 @@ import android.widget.Toast;
 
 import com.whh.recordmusic.R;
 import com.whh.recordmusic.model.SocketServer;
-import com.whh.recordmusic.utils.Utils;
 import com.whh.recordmusic.utils.OnMessageListener;
+import com.whh.recordmusic.utils.SocketUtils;
 
 /**
  * Created by wuhuihui on 2019/3/26.
@@ -42,15 +42,15 @@ public class SocketServerActivity extends Activity implements OnMessageListener 
         activity = this;
 
         TextView type = (TextView) findViewById(R.id.type);
-        type.setText("服务器\nIP：" + Utils.getIPAddress(activity));
+        type.setText("服务器\nIP：" + SocketUtils.getIPAddress(activity));
 
         txt = (TextView) findViewById(R.id.textView);
         edit = (EditText) findViewById(R.id.edit);
         btn = (Button) findViewById(R.id.btn);
 
-        Log.i(TAG, "获取服务器的IP地址" + Utils.getIPAddress(activity));
-        server = new SocketServer(Utils.port); //启动服务端端口,服务端IP为手机IP
-        Utils.server = server;
+        Log.i(TAG, "获取服务器的IP地址" + SocketUtils.getIPAddress(activity));
+//        server = new SocketServer(SocketUtils.port); //启动服务端端口,服务端IP为手机IP
+//        Utils.server = server;
         Log.i(TAG, "服务器已启动，等待客户端连接...");
         server.beginListen(); //socket服务端开始监听
 
@@ -96,6 +96,11 @@ public class SocketServerActivity extends Activity implements OnMessageListener 
             edit.setText("");
             btn.setEnabled(false);
         } else Toast.makeText(activity, "消息发送失败，请检查连接是否正常！", Toast.LENGTH_LONG).show();
+    }
+
+    @Override
+    public void receive(String message) {
+
     }
 
 }

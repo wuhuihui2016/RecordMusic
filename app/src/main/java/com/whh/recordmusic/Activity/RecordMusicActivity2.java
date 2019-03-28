@@ -18,7 +18,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.whh.recordmusic.R;
-import com.whh.recordmusic.utils.Utils;
+import com.whh.recordmusic.utils.SocketUtils;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -201,7 +201,7 @@ public class RecordMusicActivity2 extends Activity implements View.OnClickListen
             }
 
             try {
-                Socket receiver = Utils.connSocket;
+                Socket receiver = SocketUtils.target;
                 if (receiver != null && !receiver.isClosed()) {
                     if (receiver.isConnected()) {
                         Log.i(TAG, "startRecording开始录制。。。。");
