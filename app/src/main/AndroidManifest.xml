@@ -2,7 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.whh.recordmusic">
 
-    <uses-sdk android:minSdkVersion="9" />
+    <uses-sdk
+        android:minSdkVersion="16"
+        android:targetSdkVersion="25" />
 
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
@@ -38,6 +40,8 @@
 
         <activity android:name=".Activity.SocketClientActivity" />
         <activity android:name=".Activity.SocketServerActivity" />
+        <activity android:name=".Activity.RecordMusicActivity" />
+        <activity android:name=".Activity.RecordMusicActivity2" />
     </application>
 
 </manifest>

@@ -6,6 +6,10 @@ import android.os.Message;
 import android.util.Log;
 import android.widget.Toast;
 
+import com.whh.recordmusic.utils.OnConnectListener;
+import com.whh.recordmusic.utils.OnMessageListener;
+import com.whh.recordmusic.utils.Utils;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
@@ -33,13 +37,14 @@ public class SocketClient {
     /**
      * 开启线程建立连接开启客户端
      */
-    public void openClientThread(final onConnectListener listener) {
+    public void openClientThread(final OnConnectListener listener) {
         thread = new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
                     //connect()步骤
                     client = new Socket(site, port);
+                    Utils.connSocket = client;
                     client.setSoTimeout(5000); //设置超时时间
                     if (client != null) {
                         listener.onConnect(true);
@@ -51,7 +56,7 @@ public class SocketClient {
                         isClient = false;
                         Toast.makeText(context, "网络连接失败！", Toast.LENGTH_LONG).show();
                     }
-                    Log.i(TAG, "连接地址==>"+ "site=" + site + " ,port=" + port);
+                    Log.i(TAG, "连接地址==>" + "site=" + site + " ,port=" + port);
 
                 } catch (UnknownHostException e) {
                     e.printStackTrace();
@@ -63,10 +68,6 @@ public class SocketClient {
             }
         });
         thread.start();
-    }
-
-    public interface onConnectListener {
-        void onConnect(boolean isConnected);
     }
 
     /**
@@ -121,7 +122,7 @@ public class SocketClient {
     /**
      * 发送消息
      */
-    public void sendMsg(final String str) {
+    public void sendMsg(final String str, final OnMessageListener listener) {
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -129,9 +130,11 @@ public class SocketClient {
                     out.print(str);
                     out.flush();
                     Log.i(TAG, "发送消息==>" + str);
+                    listener.sendMsg(true);
                 } else {
                     isClient = false;
-                    Toast.makeText(context, "网络连接失败！", Toast.LENGTH_LONG).show();
+                    listener.sendMsg(false);
+                    Log.i(TAG, "消息发送失败，请检查连接是否正常！");
                 }
             }
         }).start();

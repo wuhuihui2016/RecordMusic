@@ -8,6 +8,7 @@ import android.media.MediaRecorder;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.ParcelFileDescriptor;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
@@ -17,9 +18,11 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.whh.recordmusic.R;
+import com.whh.recordmusic.utils.Utils;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -29,7 +32,7 @@ import java.util.List;
 public class RecordMusicActivity extends Activity implements View.OnClickListener {
 
     private TextView statusTextView, amplitudeTextView, info;
-    private Button startRecording, stopRecording, playRecording;
+    private Button startRecording, recordingAndSend, stopRecording, playRecording;
 
     private boolean isRecording; //标识当前录制状态
     private MediaRecorder recorder; //录制器
@@ -103,13 +106,14 @@ public class RecordMusicActivity extends Activity implements View.OnClickListene
      */
     private void initView() {
         statusTextView = (TextView) findViewById(R.id.statusTextView);
-        statusTextView.setText("Ready");
+        statusTextView.setText("ready");
         amplitudeTextView = (TextView) findViewById(R.id.amplitudeTextView);
         amplitudeTextView.setText("0");
 
         info = (TextView) findViewById(R.id.info);
 
         startRecording = (Button) findViewById(R.id.startRecording); //开始录制
+        recordingAndSend = (Button) findViewById(R.id.recordingAndSend); //录制并发送
         stopRecording = (Button) findViewById(R.id.stopRecording); //停止录制
         playRecording = (Button) findViewById(R.id.playRecording); //播放已录制
 
@@ -121,62 +125,30 @@ public class RecordMusicActivity extends Activity implements View.OnClickListene
     @Override
     public void onClick(View v) {
         if (v == startRecording) { //开始录制
-            if (!Environment.getExternalStorageState().equals(
-                    android.os.Environment.MEDIA_MOUNTED)) {
-                Toast.makeText(getApplicationContext(), "SD卡不存在，请插入SD卡！", Toast.LENGTH_LONG).show();
-                return;
+            initRecorder();
+
+        } else if (v == recordingAndSend) { //录制并发送
+            initRecorder();
+            if (Utils.ID == Utils.CLIENT) {
+                statusTextView.setText("recording with sending");
+                //设置发送对象，发送音频段
+                Socket receiver = Utils.connSocket;
+                ParcelFileDescriptor pfd = ParcelFileDescriptor.fromSocket(receiver);
+                recorder.setOutputFile(pfd.getFileDescriptor());
             }
-
-            try {
-                info.setText("");
-                recorder = new MediaRecorder();
-                recorder.setAudioSource(MediaRecorder.AudioSource.DEFAULT); //默认音频源
-                /**
-                 MediaRecorder.AudioSource.DEFAULT  默认音频源
-                 MediaRecorder.AudioSource.MIC 设定录音来源为主麦克风。
-                 MediaRecorder.AudioSource.VOICE_CALL 设定录音来源为语音拨出的语音与对方说话的声音
-                 MediaRecorder.AudioSource.VOICE_COMMUNICATION 摄像头旁边的麦克风
-                 MediaRecorder.AudioSource.VOICE_DOWNLINK 下行声音
-                 MediaRecorder.AudioSource.VOICE_RECOGNITION 语音识别
-                 MediaRecorder.AudioSource.VOICE_UPLINK 上行声音
-                 */
-                recorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
-                recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
-                File path = new File(Environment.getExternalStorageDirectory() + "/recordMusic"); //保存录制完成的音频文件夹
-                path.mkdirs();
-//                SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss");
-//                String time = sdf.format(new Date());
-//                Log.i("fileName", time); //介于多次录制，文件名以时间后缀命名
-                audioFile = File.createTempFile("recording", ".amr", path);
-                Log.i("fileName2", audioFile.getAbsolutePath());
-                recorder.setOutputFile(audioFile.getAbsolutePath()); //设置输出文件，保存为AMR
-                recorder.prepare();
-                recorder.start(); //启动录制器
-                isRecording = true;
-                recordAmplitude = new RecordAmplitude();
-                recordAmplitude.execute();
-
-                statusTextView.setText("Recording");
-
-                playRecording.setEnabled(false);
-                stopRecording.setEnabled(true);
-                startRecording.setEnabled(false);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
         } else if (v == stopRecording) { //停止录制
             isRecording = false;
-            recordAmplitude.cancel(true);
+//            recordAmplitude.cancel(true);
 
             recorder.stop();
             recorder.release(); //停止并释放录制器
 
-            statusTextView.setText("Ready to Play");
+            statusTextView.setText("ready to Play");
             info.setText("录制完成！文件已保存：" + audioFile.getAbsolutePath()); //录制完成显示音频文件路径
             playRecording.setEnabled(true);
             stopRecording.setEnabled(false);
             startRecording.setEnabled(true);
+            recordingAndSend.setEnabled(true);
 
         } else if (v == playRecording) { //播放已录制
             try {
@@ -186,22 +158,24 @@ public class RecordMusicActivity extends Activity implements View.OnClickListene
                 player.prepare();
                 if (player != null && audioFile.exists()) {
                     player.start();
-                    statusTextView.setText("Playing");
+                    statusTextView.setText("playing");
 
                     playRecording.setEnabled(false);
                     stopRecording.setEnabled(false);
                     startRecording.setEnabled(false);
+                    recordingAndSend.setEnabled(false);
                 }
 
                 //设置播放器播放完成事件
                 player.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
                     @Override
                     public void onCompletion(MediaPlayer mp) {
-                        statusTextView.setText("Ready");
+                        statusTextView.setText("ready");
 
                         playRecording.setEnabled(true);
                         stopRecording.setEnabled(false);
                         startRecording.setEnabled(true);
+                        recordingAndSend.setEnabled(true);
                     }
                 });
             } catch (IllegalArgumentException e) {
@@ -241,6 +215,59 @@ public class RecordMusicActivity extends Activity implements View.OnClickListene
             super.onProgressUpdate(values);
             amplitudeTextView.setText(values[0].toString());
         }
+    }
+
+    /**
+     * 初始化录音
+     */
+    private void initRecorder() { //开始录制
+        if (!Environment.getExternalStorageState().equals(
+                android.os.Environment.MEDIA_MOUNTED)) {
+            Toast.makeText(getApplicationContext(), "SD卡不存在，请插入SD卡！", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        try {
+            info.setText("");
+            recorder = new MediaRecorder();
+            recorder.setAudioSource(MediaRecorder.AudioSource.DEFAULT); //默认音频源
+            /**
+             MediaRecorder.AudioSource.DEFAULT  默认音频源
+             MediaRecorder.AudioSource.MIC 设定录音来源为主麦克风。
+             MediaRecorder.AudioSource.VOICE_CALL 设定录音来源为语音拨出的语音与对方说话的声音
+             MediaRecorder.AudioSource.VOICE_COMMUNICATION 摄像头旁边的麦克风
+             MediaRecorder.AudioSource.VOICE_DOWNLINK 下行声音
+             MediaRecorder.AudioSource.VOICE_RECOGNITION 语音识别
+             MediaRecorder.AudioSource.VOICE_UPLINK 上行声音
+             */
+            recorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
+            recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
+            File path = new File(Environment.getExternalStorageDirectory() + "/recordMusic"); //保存录制完成的音频文件夹
+            path.mkdirs();
+//                SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss");
+//                String time = sdf.format(new Date());
+//                Log.i("fileName", time); //介于多次录制，文件名以时间后缀命名
+            audioFile = File.createTempFile("recording", ".amr", path);
+            Log.i("fileName2", audioFile.getAbsolutePath());
+            recorder.setOutputFile(audioFile.getAbsolutePath()); //设置输出文件，保存为AMR
+
+            statusTextView.setText("recording");
+            isRecording = true;
+
+            recorder.prepare();
+            recorder.start(); //启动录制器
+            recordAmplitude = new RecordAmplitude();
+            recordAmplitude.execute();
+
+            playRecording.setEnabled(false);
+            recordingAndSend.setEnabled(false);
+            stopRecording.setEnabled(true);
+            startRecording.setEnabled(false);
+            recordingAndSend.setEnabled(false);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
     }
 
 

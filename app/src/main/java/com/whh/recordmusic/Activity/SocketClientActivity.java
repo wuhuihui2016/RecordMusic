@@ -1,9 +1,12 @@
 package com.whh.recordmusic.Activity;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -13,8 +16,10 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.whh.recordmusic.R;
-import com.whh.recordmusic.utils.Utils;
 import com.whh.recordmusic.model.SocketClient;
+import com.whh.recordmusic.utils.Utils;
+import com.whh.recordmusic.utils.OnConnectListener;
+import com.whh.recordmusic.utils.OnMessageListener;
 
 /**
  * Created by wuhuihui on 2019/3/26.
@@ -42,19 +47,56 @@ public class SocketClientActivity extends Activity {
                 Toast.makeText(getApplicationContext(),
                         "连接失败！", Toast.LENGTH_LONG).show();
             } else if (msg.what == 1) { //连接成功
+                Utils.IP = getIP;
                 Toast.makeText(getApplicationContext(),
                         "连接成功！", Toast.LENGTH_LONG).show();
+                Utils.hideInput(activity); //隐藏键盘
                 connLayout.setVisibility(View.GONE);
                 sendLayout.setVisibility(View.VISIBLE);
                 txt = (TextView) findViewById(R.id.textView);
                 edit = (EditText) findViewById(R.id.edit);
                 btn = (Button) findViewById(R.id.btn);
 
-                //发送消息
-                btn.setOnClickListener(new View.OnClickListener() {
+                edit.addTextChangedListener(new TextWatcher() {
+                    @Override
+                    public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+
+                    }
+
+                    @Override
+                    public void onTextChanged(CharSequence s, int start, int before, int count) {
+                        if (s.length() > 0) btn.setEnabled(true);
+                        else btn.setEnabled(false);
+                        //发送消息
+                        btn.setOnClickListener(new View.OnClickListener() {
+                            @Override
+                            public void onClick(View v) {
+                                client.sendMsg(edit.getText().toString(), new OnMessageListener() {
+                                    @Override
+                                    public void sendMsg(boolean isSucessful) {
+                                        if (isSucessful) {
+                                            Log.i(TAG, "消息发送成功！");
+                                            edit.setText("");
+                                            btn.setEnabled(false);
+                                        } else
+                                            Toast.makeText(activity, "消息发送失败，请检查连接是否正常！", Toast.LENGTH_LONG).show();
+                                    }
+                                });
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void afterTextChanged(Editable s) {
+
+                    }
+                });
+
+                findViewById(R.id.recordBtn).setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
-                        client.sendMsg(edit.getText().toString());
+                        Intent intent = new Intent(activity, RecordMusicActivity.class);
+                        startActivity(intent);
                     }
                 });
 
@@ -71,6 +113,8 @@ public class SocketClientActivity extends Activity {
             }
         }
     };
+
+    String getIP = null; //连接的IP
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -91,11 +135,11 @@ public class SocketClientActivity extends Activity {
         findViewById(R.id.connbtn).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String getIP = editIP.getText().toString();
+                getIP = editIP.getText().toString();
                 client = new SocketClient();
                 client.clientValue(activity, getIP, Utils.port); //设置服务端的IP和端口号
                 //开启客户端接收消息线程
-                client.openClientThread(new SocketClient.onConnectListener() {
+                client.openClientThread(new OnConnectListener() {
                     @Override
                     public void onConnect(boolean isConnected) {
                         Message message = Message.obtain();

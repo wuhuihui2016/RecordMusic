@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.view.View;
 
 import com.whh.recordmusic.R;
+import com.whh.recordmusic.utils.Utils;
 
 /**
  * Created by wuhuihui on 2019/3/26.
@@ -24,6 +25,7 @@ public class SocketCSActivity extends Activity {
         findViewById(R.id.client).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                Utils.ID = 1; //设置当前身份
                 startActivity(new Intent(getApplicationContext(), SocketClientActivity.class));
             }
         });
@@ -32,6 +34,7 @@ public class SocketCSActivity extends Activity {
         findViewById(R.id.server).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                Utils.ID = 0; //设置当前身份
                 startActivity(new Intent(getApplicationContext(), SocketServerActivity.class));
             }
         });

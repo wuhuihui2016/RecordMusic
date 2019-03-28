@@ -7,7 +7,6 @@ import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaPlayer;
 import android.media.MediaRecorder;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
 import android.support.v4.app.ActivityCompat;
@@ -19,10 +18,13 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.whh.recordmusic.R;
+import com.whh.recordmusic.utils.Utils;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,11 +34,9 @@ import java.util.List;
 public class RecordMusicActivity2 extends Activity implements View.OnClickListener {
 
     private TextView statusTextView, amplitudeTextView, info;
-    private Button startRecording, stopRecording, playRecording;
+    private Button startRecording, recordingAndSend, stopRecording, playRecording;
 
     private boolean isRecording; //标识当前录制状态
-    private MediaRecorder recorder; //录制器
-    private RecordAmplitude recordAmplitude; //录制状态时的刷新页面
     private MediaPlayer player; //播放器
     private File audioFile; //录制完成后保存的AMR文件
 
@@ -109,8 +109,8 @@ public class RecordMusicActivity2 extends Activity implements View.OnClickListen
      */
     private void initView() {
 
-        Log.i(TAG + "initView", Environment.getExternalStorageDirectory() + "/recordMusic");
-        Log.i(TAG + "存放录制音频的目录", Environment.getExternalStorageDirectory() + "/recordMusic");
+        Log.i(TAG, Environment.getExternalStorageDirectory() + "/recordMusic");
+        Log.i(TAG, "存放录制音频的目录" + Environment.getExternalStorageDirectory() + "/recordMusic");
 
         float scale = getResources().getDisplayMetrics().density;
         float scaledDensity = getResources().getDisplayMetrics().scaledDensity;
@@ -120,7 +120,7 @@ public class RecordMusicActivity2 extends Activity implements View.OnClickListen
         Log.i(TAG + "顶部大标题", 36 / scale + 0.5f + "");
         Log.i(TAG + "正文", 32 / scale + 0.5f + "");
 
-        
+
         statusTextView = (TextView) findViewById(R.id.statusTextView);
         statusTextView.setText("Ready");
         amplitudeTextView = (TextView) findViewById(R.id.amplitudeTextView);
@@ -129,6 +129,7 @@ public class RecordMusicActivity2 extends Activity implements View.OnClickListen
         info = (TextView) findViewById(R.id.info); //录制完成显示文件保存路径
 
         startRecording = (Button) findViewById(R.id.startRecording); //开始录制
+        recordingAndSend = (Button) findViewById(R.id.recordingAndSend); //录制并发送
         stopRecording = (Button) findViewById(R.id.stopRecording); //停止录制
         playRecording = (Button) findViewById(R.id.playRecording); //播放已录制
 
@@ -148,48 +149,38 @@ public class RecordMusicActivity2 extends Activity implements View.OnClickListen
 
             try {
                 Log.i(TAG, "startRecording开始录制。。。。");
-                int kSampleRate = 44100;
-                int kChannelMode = AudioFormat.CHANNEL_IN_STEREO;
-                int kEncodeFormat = AudioFormat.ENCODING_PCM_16BIT;
+                int frequency = 44100;
+                int channelConfiguration = AudioFormat.CHANNEL_CONFIGURATION_STEREO;
+                int audioEncoding = AudioFormat.ENCODING_PCM_16BIT;
+                int buffersize = AudioRecord.getMinBufferSize(frequency, channelConfiguration, audioEncoding);
+                AudioRecord audioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC,
+                        frequency, channelConfiguration, audioEncoding, buffersize);
+                byte[] buffer = new byte[frequency];
 
-                int minBufferSize = AudioRecord.getMinBufferSize(kSampleRate, kChannelMode,
-                        kEncodeFormat);
-                AudioRecord mRecord = new AudioRecord(MediaRecorder.AudioSource.REMOTE_SUBMIX,
-                        kSampleRate, kChannelMode, kEncodeFormat, minBufferSize * 2);
+                audioRecord.startRecording(); //开始录制
+                isRecording = true;
+                int bufferReadSize = 2048;
 
-                int kFrameSize = 2048;
                 File path = new File(Environment.getExternalStorageDirectory() + "/recordMusic"); //保存录制完成的音频文件夹
                 path.mkdirs();
-//                SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss");
-//                String time = sdf.format(new Date());
-//                Log.i("fileName", time); //介于多次录制，文件名以时间后缀命名
                 audioFile = File.createTempFile("recording", ".amr", path);
                 String filePath = audioFile.getAbsolutePath();
-
-                FileOutputStream os = null;
-                mRecord.startRecording();
-                isRecording = true;
-
-                os = new FileOutputStream(filePath);
-                byte[] buffer = new byte[kFrameSize];
+                FileOutputStream os = new FileOutputStream(filePath);
                 int num = 0;
                 while (isRecording) {
-                    num = mRecord.read(buffer, 0, kFrameSize);
-                    Log.d(TAG + "isRecording", "buffer = " + buffer.toString() + ", num = " + num);
+                    num = audioRecord.read(buffer, 0, bufferReadSize);
+                    Log.d(TAG, "isRecording==>buffer = " + buffer.toString() + ", num = " + num);
                     os.write(buffer, 0, num);
                 }
 
-                Log.d(TAG + "isRecording", "exit loop");
+                Log.d(TAG, "isRecording==>exit loop");
                 os.close();
 
-                mRecord.stop();
-                mRecord.release();
-                mRecord = null;
-                Log.d(TAG + "isRecording", "clean up");
-                Log.i(TAG + "audioRecord", "AudioRecord released!");
-
-                recordAmplitude = new RecordAmplitude();
-                recordAmplitude.execute();
+                audioRecord.stop();
+                audioRecord.release();
+                audioRecord = null;
+                Log.d(TAG, "isRecording==>clean up");
+                Log.i(TAG, "isRecording==>AudioRecord released!");
 
                 statusTextView.setText("Recording");
 
@@ -198,15 +189,117 @@ public class RecordMusicActivity2 extends Activity implements View.OnClickListen
                 startRecording.setEnabled(false);
             } catch (IOException e) {
                 e.printStackTrace();
-                Log.e(TAG + "isRecording", "Dump PCM to file failed");
+                Log.e(TAG, "isRecording==>Dump PCM to file failed");
+            }
+
+        } else if (v == recordingAndSend) { //录制并发送
+            if (!Environment.getExternalStorageState().equals(
+                    Environment.MEDIA_MOUNTED)) {
+                Toast.makeText(getApplicationContext(),
+                        "SD卡不存在，请插入SD卡！", Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            try {
+                Socket receiver = Utils.connSocket;
+                if (receiver != null && !receiver.isClosed()) {
+                    if (receiver.isConnected()) {
+                        Log.i(TAG, "startRecording开始录制。。。。");
+                        //录制音频参数
+                        isRecording = true;
+                        int frequence = 44100; //录制频率，单位hz.这里的值注意了，写的不好，可能实例化AudioRecord对象的时候，会出错。我开始写成11025就不行。这取决于硬件设备
+                        int channelConfig = AudioFormat.CHANNEL_IN_MONO;
+                        int audioEncoding = AudioFormat.ENCODING_PCM_16BIT;
+                        int bufferSize = AudioRecord.getMinBufferSize(frequence, channelConfig, audioEncoding);
+                        //实例化AudioRecord
+                        AudioRecord audioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC, frequence, channelConfig, audioEncoding, bufferSize);
+                        //开始录制
+                        audioRecord.startRecording();
+                        //定义缓冲
+                        byte[] buffer = new byte[bufferSize];
+
+                        File path = new File(Environment.getExternalStorageDirectory() + "/recordMusic"); //保存录制完成的音频文件夹
+                        path.mkdirs();
+                        audioFile = File.createTempFile("recording", ".amr", path);
+                        String filePath = audioFile.getAbsolutePath();
+                        FileOutputStream os = new FileOutputStream(filePath);
+                        while (isRecording && receiver.isConnected()) {
+                            //从bufferSize中读取字节，这时buffer也就是原始数据
+                            int bufferReadResult = audioRecord.read(buffer, 0, bufferSize);
+                            Log.d(TAG, "isRecording==>buffer = " + buffer.toString() + ", num = " + bufferReadResult);
+                            os.write(buffer, 0, bufferReadResult);
+
+                            OutputStream outputStream = receiver.getOutputStream();
+                            outputStream.write(buffer);
+                            outputStream.flush();
+
+                        }
+
+                        Log.d(TAG, "isRecording==>exit loop");
+                        os.close();
+
+                        audioRecord.stop();
+                        audioRecord.release();
+                        audioRecord = null;
+                        Log.d(TAG, "isRecording==>clean up");
+                        Log.i(TAG, "isRecording==>AudioRecord released!");
+
+                        statusTextView.setText("Recording");
+
+                        playRecording.setEnabled(false);
+                        stopRecording.setEnabled(true);
+                        startRecording.setEnabled(false);
+                    }
+                } else Toast.makeText(getApplicationContext(),
+                        "Socket已关闭！", Toast.LENGTH_LONG).show();
+                Log.i(TAG, "startRecording开始录制。。。。");
+                //录制音频参数
+                isRecording = true;
+                int frequence = 44100; //录制频率，单位hz.这里的值注意了，写的不好，可能实例化AudioRecord对象的时候，会出错。我开始写成11025就不行。这取决于硬件设备
+                int channelConfig = AudioFormat.CHANNEL_IN_MONO;
+                int audioEncoding = AudioFormat.ENCODING_PCM_16BIT;
+                int bufferSize = AudioRecord.getMinBufferSize(frequence, channelConfig, audioEncoding);
+                //实例化AudioRecord
+                AudioRecord audioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC, frequence, channelConfig, audioEncoding, bufferSize);
+                //开始录制
+                audioRecord.startRecording();
+                //定义缓冲
+                byte[] buffer = new byte[bufferSize];
+
+                File path = new File(Environment.getExternalStorageDirectory() + "/recordMusic"); //保存录制完成的音频文件夹
+                path.mkdirs();
+                audioFile = File.createTempFile("recording", ".amr", path);
+                String filePath = audioFile.getAbsolutePath();
+                FileOutputStream os = new FileOutputStream(filePath);
+                while (isRecording) {
+                    //从bufferSize中读取字节，这时buffer也就是原始数据
+                    int bufferReadResult = audioRecord.read(buffer, 0, bufferSize);
+                    Log.d(TAG, "isRecording==>buffer = " + buffer.toString() + ", num = " + bufferReadResult);
+                    os.write(buffer, 0, bufferReadResult);
+
+                }
+
+                Log.d(TAG, "isRecording==>exit loop");
+                os.close();
+
+                audioRecord.stop();
+                audioRecord.release();
+                audioRecord = null;
+                Log.d(TAG, "isRecording==>clean up");
+                Log.i(TAG, "isRecording==>AudioRecord released!");
+
+                statusTextView.setText("Recording");
+
+                playRecording.setEnabled(false);
+                stopRecording.setEnabled(true);
+                startRecording.setEnabled(false);
+            } catch (IOException e) {
+                e.printStackTrace();
+                Log.e(TAG, "isRecording==>Dump PCM to file failed");
             }
 
         } else if (v == stopRecording) { //停止录制
             isRecording = false;
-            recordAmplitude.cancel(true);
-
-            recorder.stop();
-            recorder.release(); //停止并释放录制器
 
             statusTextView.setText("Ready to Play");
             info.setText("录制完成！文件已保存：" + audioFile.getAbsolutePath()); //录制完成显示音频文件路径
@@ -250,32 +343,6 @@ public class RecordMusicActivity2 extends Activity implements View.OnClickListen
                 e.printStackTrace();
             }
 
-        }
-    }
-
-
-    /**
-     * 刷新UI显示录音振幅
-     */
-    class RecordAmplitude extends AsyncTask {
-
-        @Override
-        protected Object doInBackground(Object[] params) {
-            while (isRecording) {
-                try {
-                    Thread.sleep(500);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-                publishProgress(recorder.getMaxAmplitude());
-            }
-            return null;
-        }
-
-        @Override
-        protected void onProgressUpdate(Object[] values) {
-            super.onProgressUpdate(values);
-            amplitudeTextView.setText(values[0].toString());
         }
     }
 
