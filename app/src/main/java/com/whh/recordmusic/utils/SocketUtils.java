@@ -1,13 +1,11 @@
 package com.whh.recordmusic.utils;
 
-import android.app.Activity;
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.util.Log;
-import android.view.inputmethod.InputMethodManager;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -19,6 +17,8 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.util.Enumeration;
+
+import static com.whh.recordmusic.model.SocketServer.socket;
 
 /**
  * Created by wuhuihui on 2019/3/26.
@@ -49,6 +49,7 @@ public class SocketUtils {
                     if (target != null) {
                         connListener.onConnect(true);
                         targetIP = inetAddress;
+                        Log.i(TAG, "连接成功！");
                     } else connListener.onConnect(false);
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -66,12 +67,12 @@ public class SocketUtils {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                Socket socket = null;
                 try {
                     ServerSocket server = new ServerSocket(port);
-                    Log.i(TAG, "本机已启动，等待客户端连接...");
-                    socket = server.accept(); //接收请求 accept()
-                    if (socket != null) {
+                    Log.i(TAG, "本机已启动，等待被连接...");
+                    target = server.accept(); //接收请求 accept()
+                    targetIP = target.getInetAddress().toString();
+                    if (target != null) {
                         try {
                             connListener.onConnect(true);
                             InputStream in = target.getInputStream();
@@ -93,7 +94,7 @@ public class SocketUtils {
                 } catch (IOException e) {
                     e.printStackTrace();
                     try {
-                        socket.close();
+                        if (socket != null) socket.close();
                         Log.i(TAG, "关闭连接");
                     } catch (IOException e1) {
                         e1.printStackTrace();
@@ -181,15 +182,5 @@ public class SocketUtils {
                 ((ip >> 16) & 0xFF) + "." +
                 (ip >> 24 & 0xFF);
     }
-
-
-    //隐藏键盘
-    public static void hideInput(Activity activity) {
-        ((InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE))
-                .hideSoftInputFromWindow(
-                        activity.getCurrentFocus().getWindowToken(),
-                        InputMethodManager.HIDE_NOT_ALWAYS);
-    }
-
 
 }

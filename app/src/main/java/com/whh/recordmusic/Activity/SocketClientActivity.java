@@ -19,7 +19,7 @@ import com.whh.recordmusic.R;
 import com.whh.recordmusic.model.SocketClient;
 import com.whh.recordmusic.utils.OnConnectListener;
 import com.whh.recordmusic.utils.OnMessageListener;
-import com.whh.recordmusic.utils.SocketUtils;
+import com.whh.recordmusic.utils.Utils;
 
 /**
  * Created by wuhuihui on 2019/3/26.
@@ -81,6 +81,11 @@ public class SocketClientActivity extends Activity {
                                         } else
                                             Toast.makeText(activity, "消息发送失败，请检查连接是否正常！", Toast.LENGTH_LONG).show();
                                     }
+
+                                    @Override
+                                    public void receive(String message) {
+
+                                    }
                                 });
                             }
                         });
@@ -137,7 +142,7 @@ public class SocketClientActivity extends Activity {
             public void onClick(View v) {
                 getIP = editIP.getText().toString();
                 client = new SocketClient();
-                client.clientValue(activity, getIP, SocketUtils.port); //设置服务端的IP和端口号
+                client.clientValue(activity, getIP, Utils.port); //设置服务端的IP和端口号
                 //开启客户端接收消息线程
                 client.openClientThread(new OnConnectListener() {
                     @Override

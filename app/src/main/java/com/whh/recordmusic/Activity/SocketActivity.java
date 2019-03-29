@@ -3,6 +3,8 @@ package com.whh.recordmusic.Activity;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
@@ -16,6 +18,7 @@ import com.whh.recordmusic.R;
 import com.whh.recordmusic.utils.OnConnectListener;
 import com.whh.recordmusic.utils.OnMessageListener;
 import com.whh.recordmusic.utils.SocketUtils;
+import com.whh.recordmusic.utils.Utils;
 
 /**
  * Created by wuhuihui on 2019/3/26.
@@ -35,6 +38,34 @@ public class SocketActivity extends Activity {
     private TextView txt;
     private EditText edit;
     private Button btn, recordBtn;
+
+    private Handler handler = new Handler() {
+        @Override
+        public void handleMessage(Message msg) {
+            super.handleMessage(msg);
+            Log.i(TAG, "handleMessage=" + msg.what);
+            boolean isConnected;
+            switch (msg.what) {
+                case 0: //连接失败
+                    isConnected = false;
+                    do4Connected(isConnected);
+                case 1: //连接成功
+                    isConnected = true;
+                    do4Connected(isConnected);
+                case 3: //消息发送失败
+//                    Toast.makeText(activity,
+//                            "消息发送失败，请检查连接是否正常！", Toast.LENGTH_LONG).show();
+                case 4: //消息接收成功
+                    txt.setText("");
+                    btn.setEnabled(false);
+                    if (msg.obj != null) {
+                        txt.setText(msg.obj.toString());
+                    }
+//                    else Toast.makeText(activity, "消息已发送", Toast.LENGTH_LONG).show();
+
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,17 +91,26 @@ public class SocketActivity extends Activity {
         SocketUtils.addMessageListener(new OnConnectListener() {
             @Override
             public void onConnect(boolean isConnected) {
-                //如有手机连接成功，可以向其发送消息
-                do4Connected(isConnected);
+                Message message = Message.obtain();
+                if (isConnected) message.what = 1;
+                else message.what = 0;
+                handler.sendMessage(message);
             }
         }, new OnMessageListener() {
             @Override
             public void sendMsg(boolean isSucessful) {
+                Message msg = Message.obtain();
+                if (isSucessful) msg.what = 4;
+                else msg.what = 3;
+                handler.sendMessage(msg);
             }
 
             @Override
             public void receive(String message) {
-                txt.setText(message); //显示消息
+                Message msg = Message.obtain();
+                msg.what = 4;
+                msg.obj = message;
+                handler.sendMessage(msg);
             }
         });
 
@@ -90,12 +130,11 @@ public class SocketActivity extends Activity {
                             SocketUtils.addConnectListener(editIP.getText().toString(), new OnConnectListener() {
                                 @Override
                                 public void onConnect(boolean isConnected) {
-                                    if (isConnected) Toast.makeText(activity, "连接成功！",
-                                            Toast.LENGTH_SHORT).show();
-                                    else Toast.makeText(activity, "连接失败！",
-                                            Toast.LENGTH_LONG).show();
-                                    //如连接成功，可以向其发送消息
-                                    do4Connected(isConnected);
+                                    Log.i(TAG, "onConnect=" + isConnected);
+                                    Message message = Message.obtain();
+                                    if (isConnected) message.what = 1;
+                                    else message.what = 0;
+                                    handler.sendMessage(message);
                                 }
                             });
                         }
@@ -115,6 +154,8 @@ public class SocketActivity extends Activity {
      */
     private void do4Connected(boolean isConnected) {
         if (isConnected) {
+            Toast.makeText(activity, "连接成功！",
+                    Toast.LENGTH_SHORT).show();
             findViewById(R.id.connLayout).setVisibility(View.GONE);
             findViewById(R.id.msgLayout).setVisibility(View.VISIBLE);
             //设置消息发送
@@ -132,23 +173,24 @@ public class SocketActivity extends Activity {
                     btn.setOnClickListener(new View.OnClickListener() {
                         @Override
                         public void onClick(View v) {
-                            SocketUtils.hideInput(activity); //隐藏键盘
+                            Utils.hideInput(activity); //隐藏键盘
                             SocketUtils.sendMsg(getMyIP + "：" + edit.getText().toString(), new OnMessageListener() {
                                 @Override
                                 public void sendMsg(boolean isSucessful) {
-                                    if (isSucessful) {
-                                        Log.i(TAG, "消息发送成功！");
-                                        edit.setText("");
-                                        btn.setEnabled(false);
-                                    } else
-                                        Toast.makeText(activity,
-                                                "消息发送失败，请检查连接是否正常！", Toast.LENGTH_LONG).show();
+                                    Message msg = Message.obtain();
+                                    if (isSucessful) msg.what = 4;
+                                    else msg.what = 3;
+                                    handler.sendMessage(msg);
                                 }
 
                                 @Override
                                 public void receive(String message) {
+                                    Message msg = Message.obtain();
+                                    msg.what = 4;
+                                    msg.obj = message;
+                                    handler.sendMessage(msg);
                                 }
-                            }); //发送数据
+                            });
                         }
                     });
                 }
@@ -167,6 +209,8 @@ public class SocketActivity extends Activity {
                 }
             });
         } else {
+            Toast.makeText(activity, "连接失败！",
+                    Toast.LENGTH_SHORT).show();
             findViewById(R.id.connLayout).setVisibility(View.GONE);
             findViewById(R.id.msgLayout).setVisibility(View.VISIBLE);
         }

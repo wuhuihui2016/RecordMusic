@@ -8,6 +8,7 @@ import android.widget.Toast;
 
 import com.whh.recordmusic.utils.OnConnectListener;
 import com.whh.recordmusic.utils.OnMessageListener;
+import com.whh.recordmusic.utils.Utils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -43,6 +44,7 @@ public class SocketClient {
                 try {
                     //connect()步骤
                     client = new Socket(site, port);
+                    Utils.connSocket = client;
                     client.setSoTimeout(5000); //设置超时时间
                     if (client != null) {
                         listener.onConnect(true);

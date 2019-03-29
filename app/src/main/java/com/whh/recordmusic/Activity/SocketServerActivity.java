@@ -15,8 +15,9 @@ import android.widget.Toast;
 
 import com.whh.recordmusic.R;
 import com.whh.recordmusic.model.SocketServer;
-import com.whh.recordmusic.utils.OnMessageListener;
 import com.whh.recordmusic.utils.SocketUtils;
+import com.whh.recordmusic.utils.Utils;
+import com.whh.recordmusic.utils.OnMessageListener;
 
 /**
  * Created by wuhuihui on 2019/3/26.
@@ -49,8 +50,8 @@ public class SocketServerActivity extends Activity implements OnMessageListener 
         btn = (Button) findViewById(R.id.btn);
 
         Log.i(TAG, "获取服务器的IP地址" + SocketUtils.getIPAddress(activity));
-//        server = new SocketServer(SocketUtils.port); //启动服务端端口,服务端IP为手机IP
-//        Utils.server = server;
+        server = new SocketServer(Utils.port); //启动服务端端口,服务端IP为手机IP
+        Utils.server = server;
         Log.i(TAG, "服务器已启动，等待客户端连接...");
         server.beginListen(); //socket服务端开始监听
 
