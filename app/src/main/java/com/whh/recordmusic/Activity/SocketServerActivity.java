@@ -15,9 +15,9 @@ import android.widget.Toast;
 
 import com.whh.recordmusic.R;
 import com.whh.recordmusic.model.SocketServer;
+import com.whh.recordmusic.utils.OnMessageListener;
 import com.whh.recordmusic.utils.SocketUtils;
 import com.whh.recordmusic.utils.Utils;
-import com.whh.recordmusic.utils.OnMessageListener;
 
 /**
  * Created by wuhuihui on 2019/3/26.
@@ -34,6 +34,20 @@ public class SocketServerActivity extends Activity implements OnMessageListener 
     private Button btn;
 
     private SocketServer server;
+
+    private Handler handler = new Handler() {
+        @Override
+        public void handleMessage(Message msg) {
+            super.handleMessage(msg);
+            if (msg.what == 3) {
+                Log.i(TAG, "消息发送成功！");
+                edit.setText("");
+                btn.setEnabled(false);
+            } else if (msg.what == 4){
+                Toast.makeText(activity, "消息发送失败，请检查连接是否正常！", Toast.LENGTH_LONG).show();
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -92,11 +106,11 @@ public class SocketServerActivity extends Activity implements OnMessageListener 
 
     @Override
     public void sendMsg(boolean isSucessful) {
+        Message message = Message.obtain();
         if (isSucessful) {
-            Log.i(TAG, "消息发送成功！");
-            edit.setText("");
-            btn.setEnabled(false);
-        } else Toast.makeText(activity, "消息发送失败，请检查连接是否正常！", Toast.LENGTH_LONG).show();
+            message.what = 3;
+        } else message.what = 4;
+        handler.sendMessage(message);
     }
 
     @Override

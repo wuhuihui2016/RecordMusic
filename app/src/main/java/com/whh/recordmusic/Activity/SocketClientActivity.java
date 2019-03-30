@@ -41,7 +41,7 @@ public class SocketClientActivity extends Activity {
      */
     private Handler clientHander = new Handler() {
         @Override
-        public void handleMessage(Message msg) {
+        public void handleMessage(final Message msg) {
             super.handleMessage(msg);
             if (msg.what == 0) {
                 Toast.makeText(getApplicationContext(),
@@ -75,9 +75,9 @@ public class SocketClientActivity extends Activity {
                                     @Override
                                     public void sendMsg(boolean isSucessful) {
                                         if (isSucessful) {
-                                            Log.i(TAG, "消息发送成功！");
-                                            edit.setText("");
-                                            btn.setEnabled(false);
+                                            Message msg = Message.obtain();
+                                            msg.what = 3;
+                                            sendMessage(msg);
                                         } else
                                             Toast.makeText(activity, "消息发送失败，请检查连接是否正常！", Toast.LENGTH_LONG).show();
                                     }
@@ -111,10 +111,14 @@ public class SocketClientActivity extends Activity {
                     public void handleMessage(Message msg) {
                         super.handleMessage(msg);
 
-                        txt.setText(msg.obj.toString());
+                        txt.setText(getIP + "：" + msg.obj.toString());
                         Log.i(TAG, "接收消息==>" + msg.obj.toString());
                     }
                 };
+            } else if (msg.what == 3) {
+                Log.i(TAG, "消息发送成功！");
+                edit.setText("");
+                btn.setEnabled(false);
             }
         }
     };

@@ -63,7 +63,8 @@ public class SocketServer {
                             byte[] bt = new byte[50];
                             in.read(bt);
                             str = new String(bt, "UTF-8"); //编码方式  解决收到数据乱码
-                            if (str != null && str != "exit") {
+                            if (str!= null && str != "exit") {
+                                Log.i(TAG, "getInetAddress" + socket.getInetAddress());
                                 receiveMessage(socket.getInetAddress() + "：" + str + "\n");
                             } else if (str == null && str == "exit") {
                                 break;  //跳出循环结束socket数据接收
