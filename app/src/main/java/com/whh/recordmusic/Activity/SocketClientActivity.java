@@ -19,6 +19,7 @@ import com.whh.recordmusic.R;
 import com.whh.recordmusic.model.SocketClient;
 import com.whh.recordmusic.utils.OnConnectListener;
 import com.whh.recordmusic.utils.OnMessageListener;
+import com.whh.recordmusic.utils.SocketUtils;
 import com.whh.recordmusic.utils.Utils;
 
 /**
@@ -47,7 +48,6 @@ public class SocketClientActivity extends Activity {
                 Toast.makeText(getApplicationContext(),
                         "连接失败！", Toast.LENGTH_LONG).show();
             } else if (msg.what == 1) { //连接成功
-                Utils.IP = getIP;
                 Toast.makeText(getApplicationContext(),
                         "连接成功！", Toast.LENGTH_LONG).show();
                 Utils.hideInput(activity); //隐藏键盘
@@ -100,7 +100,7 @@ public class SocketClientActivity extends Activity {
                 findViewById(R.id.recordBtn).setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
-                        Intent intent = new Intent(activity, RecordMusicActivity.class);
+                        Intent intent = new Intent(activity, RecordMusicActivity2.class);
                         startActivity(intent);
                     }
                 });
@@ -146,7 +146,7 @@ public class SocketClientActivity extends Activity {
             public void onClick(View v) {
                 getIP = editIP.getText().toString();
                 client = new SocketClient();
-                client.clientValue(activity, getIP, Utils.port); //设置服务端的IP和端口号
+                client.clientValue(activity, getIP, SocketUtils.port); //设置服务端的IP和端口号
                 //开启客户端接收消息线程
                 client.openClientThread(new OnConnectListener() {
                     @Override

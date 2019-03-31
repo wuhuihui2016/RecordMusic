@@ -28,9 +28,14 @@ public class SocketUtils {
 
     private static final String TAG = "SocketUtils";
 
-    private static int port = 5555;
+    public static int port = 5555;
     public static Socket target; //另一手机
     public static String targetIP;  //另一手机IP
+
+    public static final int SERVER = 0, CLIENT = 1;
+    public static int ID = SERVER; //默认是服务器，0服务器，1用户端
+
+    public static boolean isAudio = false; //音频消息标识
 
     /**
      * 通过IP连接另一个手机，实现互通

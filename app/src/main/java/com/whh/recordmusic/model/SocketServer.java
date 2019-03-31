@@ -1,5 +1,8 @@
 package com.whh.recordmusic.model;
 
+import android.media.AudioFormat;
+import android.media.AudioManager;
+import android.media.AudioTrack;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
@@ -63,9 +66,10 @@ public class SocketServer {
                             byte[] bt = new byte[50];
                             in.read(bt);
                             str = new String(bt, "UTF-8"); //编码方式  解决收到数据乱码
-                            if (str!= null && str != "exit") {
+                            if (str != null && str != "exit") {
                                 Log.i(TAG, "getInetAddress" + socket.getInetAddress());
-                                receiveMessage(socket.getInetAddress() + "：" + str + "\n");
+//                                receiveMessage(socket.getInetAddress() + "：" + str + "\n");
+                                receiveAudioData(); //接收音频数据包
                             } else if (str == null && str == "exit") {
                                 break;  //跳出循环结束socket数据接收
                             }
@@ -121,6 +125,29 @@ public class SocketServer {
         sHandler.sendMessage(msg);
     }
 
+    private long alreadyReadByteCount = 0;
+
+    public void receiveAudioData() {
+        try {
+            Socket socket = server.accept();
+            InputStream inputStream = socket.getInputStream();
+            int tmp = 0;
+            byte[] data = new byte[1024];
+            int mMinBufferSize = AudioTrack.getMinBufferSize(44100,AudioFormat.CHANNEL_CONFIGURATION_MONO, AudioFormat.ENCODING_PCM_16BIT);//计算最小缓冲区
+            AudioTrack audioTrack = new AudioTrack(AudioManager.STREAM_MUSIC, 44100, AudioFormat.CHANNEL_CONFIGURATION_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT, mMinBufferSize, AudioTrack.MODE_STREAM);
+
+            while ((tmp = inputStream.read(data)) != -1) {
+                audioTrack.play();
+                audioTrack.write(data, 0, data.length);
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+    }
+
     /**
      * 接收文件
      */
@@ -147,7 +174,7 @@ public class SocketServer {
             file.close();
             dataStream.close();
             socket.close();
-            sendMessage(null,fileName + "接收完成");
+            sendMessage(null, fileName + "接收完成");
         } catch (Exception e) {
             sendMessage(null, "接收错误:\n" + e.getMessage());
         }

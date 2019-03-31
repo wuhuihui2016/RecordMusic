@@ -14,14 +14,7 @@ import java.net.Socket;
 
 public class Utils {
 
-    public static int port = 5555;
 
-    public static final int SERVER = 0, CLIENT = 1;
-    public static int ID = SERVER; //默认是服务器，0服务器，1用户端
-
-    public static SocketServer server;
-    public static Socket connSocket;
-    public static String IP = "";
 
     //隐藏键盘
     public static void hideInput(Activity activity) {

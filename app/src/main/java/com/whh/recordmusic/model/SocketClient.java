@@ -8,11 +8,12 @@ import android.widget.Toast;
 
 import com.whh.recordmusic.utils.OnConnectListener;
 import com.whh.recordmusic.utils.OnMessageListener;
-import com.whh.recordmusic.utils.Utils;
+import com.whh.recordmusic.utils.SocketUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
+import java.io.Serializable;
 import java.net.Socket;
 import java.net.UnknownHostException;
 
@@ -20,7 +21,7 @@ import java.net.UnknownHostException;
  * Created by wuhuihui on 2019/3/26.
  * 客户端socket
  */
-public class SocketClient {
+public class SocketClient implements Serializable {
 
     private final String TAG = "SocketClient";
     private Socket client;
@@ -44,10 +45,10 @@ public class SocketClient {
                 try {
                     //connect()步骤
                     client = new Socket(site, port);
-                    Utils.connSocket = client;
                     client.setSoTimeout(5000); //设置超时时间
                     if (client != null) {
                         listener.onConnect(true);
+                        SocketUtils.targetIP = site;
                         isClient = true;
                         forOut();
                         forIn();

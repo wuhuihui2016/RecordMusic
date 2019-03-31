@@ -17,7 +17,6 @@ import com.whh.recordmusic.R;
 import com.whh.recordmusic.model.SocketServer;
 import com.whh.recordmusic.utils.OnMessageListener;
 import com.whh.recordmusic.utils.SocketUtils;
-import com.whh.recordmusic.utils.Utils;
 
 /**
  * Created by wuhuihui on 2019/3/26.
@@ -64,8 +63,7 @@ public class SocketServerActivity extends Activity implements OnMessageListener 
         btn = (Button) findViewById(R.id.btn);
 
         Log.i(TAG, "获取服务器的IP地址" + SocketUtils.getIPAddress(activity));
-        server = new SocketServer(Utils.port); //启动服务端端口,服务端IP为手机IP
-        Utils.server = server;
+        server = new SocketServer(SocketUtils.port); //启动服务端端口,服务端IP为手机IP
         Log.i(TAG, "服务器已启动，等待客户端连接...");
         server.beginListen(); //socket服务端开始监听
 
@@ -98,7 +96,11 @@ public class SocketServerActivity extends Activity implements OnMessageListener 
             @Override
             public void handleMessage(Message msg) {
                 super.handleMessage(msg);
-                txt.setText(msg.obj.toString());
+                String message = msg.obj.toString();
+                txt.setText(message);
+                if (message.contains("start receiving audio...")){
+                    SocketUtils.isAudio = true;
+                } else SocketUtils.isAudio = false;
             }
         };
 

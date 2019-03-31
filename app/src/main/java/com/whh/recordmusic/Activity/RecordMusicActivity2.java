@@ -21,6 +21,8 @@ import com.whh.recordmusic.R;
 import com.whh.recordmusic.utils.SocketUtils;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -37,10 +39,19 @@ public class RecordMusicActivity2 extends Activity implements View.OnClickListen
     private Button startRecording, recordingAndSend, stopRecording, playRecording;
 
     private boolean isRecording; //标识当前录制状态
+    private AudioRecord audioRecord; //录制器
     private MediaPlayer player; //播放器
     private File audioFile; //录制完成后保存的AMR文件
 
+    //录制音频参数
+    int frequence = 44100; //录制频率，单位hz.这里的值注意了，写的不好，可能实例化AudioRecord对象的时候，会出错。我开始写成11025就不行。这取决于硬件设备
+    int channelConfig = AudioFormat.CHANNEL_IN_MONO;
+    int audioEncoding = AudioFormat.ENCODING_PCM_16BIT;
+    int bufferSize = AudioRecord.getMinBufferSize(frequence, channelConfig, audioEncoding);
+    int bufferReadSize = 1024;
+
     private final String TAG = "RecordMusic===>>";
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -140,170 +151,17 @@ public class RecordMusicActivity2 extends Activity implements View.OnClickListen
 
     @Override
     public void onClick(View v) {
-        if (v == startRecording) { //开始录制
-            if (!Environment.getExternalStorageState().equals(
-                    Environment.MEDIA_MOUNTED)) {
-                Toast.makeText(getApplicationContext(), "SD卡不存在，请插入SD卡！", Toast.LENGTH_LONG).show();
-                return;
-            }
-
-            try {
-                Log.i(TAG, "startRecording开始录制。。。。");
-                int frequency = 44100;
-                int channelConfiguration = AudioFormat.CHANNEL_CONFIGURATION_STEREO;
-                int audioEncoding = AudioFormat.ENCODING_PCM_16BIT;
-                int buffersize = AudioRecord.getMinBufferSize(frequency, channelConfiguration, audioEncoding);
-                AudioRecord audioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC,
-                        frequency, channelConfiguration, audioEncoding, buffersize);
-                byte[] buffer = new byte[frequency];
-
-                audioRecord.startRecording(); //开始录制
-                isRecording = true;
-                int bufferReadSize = 2048;
-
-                File path = new File(Environment.getExternalStorageDirectory() + "/recordMusic"); //保存录制完成的音频文件夹
-                path.mkdirs();
-                audioFile = File.createTempFile("recording", ".amr", path);
-                String filePath = audioFile.getAbsolutePath();
-                FileOutputStream os = new FileOutputStream(filePath);
-                int num = 0;
-                while (isRecording) {
-                    num = audioRecord.read(buffer, 0, bufferReadSize);
-                    Log.d(TAG, "isRecording==>buffer = " + buffer.toString() + ", num = " + num);
-                    os.write(buffer, 0, num);
-                }
-
-                Log.d(TAG, "isRecording==>exit loop");
-                os.close();
-
-                audioRecord.stop();
-                audioRecord.release();
-                audioRecord = null;
-                Log.d(TAG, "isRecording==>clean up");
-                Log.i(TAG, "isRecording==>AudioRecord released!");
-
-                statusTextView.setText("Recording");
-
-                playRecording.setEnabled(false);
-                stopRecording.setEnabled(true);
-                startRecording.setEnabled(false);
-            } catch (IOException e) {
-                e.printStackTrace();
-                Log.e(TAG, "isRecording==>Dump PCM to file failed");
-            }
-
-        } else if (v == recordingAndSend) { //录制并发送
-            if (!Environment.getExternalStorageState().equals(
-                    Environment.MEDIA_MOUNTED)) {
-                Toast.makeText(getApplicationContext(),
-                        "SD卡不存在，请插入SD卡！", Toast.LENGTH_LONG).show();
-                return;
-            }
-
-            try {
-                Socket receiver = SocketUtils.target;
-                if (receiver != null && !receiver.isClosed()) {
-                    if (receiver.isConnected()) {
-                        Log.i(TAG, "startRecording开始录制。。。。");
-                        //录制音频参数
-                        isRecording = true;
-                        int frequence = 44100; //录制频率，单位hz.这里的值注意了，写的不好，可能实例化AudioRecord对象的时候，会出错。我开始写成11025就不行。这取决于硬件设备
-                        int channelConfig = AudioFormat.CHANNEL_IN_MONO;
-                        int audioEncoding = AudioFormat.ENCODING_PCM_16BIT;
-                        int bufferSize = AudioRecord.getMinBufferSize(frequence, channelConfig, audioEncoding);
-                        //实例化AudioRecord
-                        AudioRecord audioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC, frequence, channelConfig, audioEncoding, bufferSize);
-                        //开始录制
-                        audioRecord.startRecording();
-                        //定义缓冲
-                        byte[] buffer = new byte[bufferSize];
-
-                        File path = new File(Environment.getExternalStorageDirectory() + "/recordMusic"); //保存录制完成的音频文件夹
-                        path.mkdirs();
-                        audioFile = File.createTempFile("recording", ".amr", path);
-                        String filePath = audioFile.getAbsolutePath();
-                        FileOutputStream os = new FileOutputStream(filePath);
-                        while (isRecording && receiver.isConnected()) {
-                            //从bufferSize中读取字节，这时buffer也就是原始数据
-                            int bufferReadResult = audioRecord.read(buffer, 0, bufferSize);
-                            Log.d(TAG, "isRecording==>buffer = " + buffer.toString() + ", num = " + bufferReadResult);
-                            os.write(buffer, 0, bufferReadResult);
-
-                            OutputStream outputStream = receiver.getOutputStream();
-                            outputStream.write(buffer);
-                            outputStream.flush();
-
-                        }
-
-                        Log.d(TAG, "isRecording==>exit loop");
-                        os.close();
-
-                        audioRecord.stop();
-                        audioRecord.release();
-                        audioRecord = null;
-                        Log.d(TAG, "isRecording==>clean up");
-                        Log.i(TAG, "isRecording==>AudioRecord released!");
-
-                        statusTextView.setText("Recording");
-
-                        playRecording.setEnabled(false);
-                        stopRecording.setEnabled(true);
-                        startRecording.setEnabled(false);
-                    }
-                } else Toast.makeText(getApplicationContext(),
-                        "Socket已关闭！", Toast.LENGTH_LONG).show();
-                Log.i(TAG, "startRecording开始录制。。。。");
-                //录制音频参数
-                isRecording = true;
-                int frequence = 44100; //录制频率，单位hz.这里的值注意了，写的不好，可能实例化AudioRecord对象的时候，会出错。我开始写成11025就不行。这取决于硬件设备
-                int channelConfig = AudioFormat.CHANNEL_IN_MONO;
-                int audioEncoding = AudioFormat.ENCODING_PCM_16BIT;
-                int bufferSize = AudioRecord.getMinBufferSize(frequence, channelConfig, audioEncoding);
-                //实例化AudioRecord
-                AudioRecord audioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC, frequence, channelConfig, audioEncoding, bufferSize);
-                //开始录制
-                audioRecord.startRecording();
-                //定义缓冲
-                byte[] buffer = new byte[bufferSize];
-
-                File path = new File(Environment.getExternalStorageDirectory() + "/recordMusic"); //保存录制完成的音频文件夹
-                path.mkdirs();
-                audioFile = File.createTempFile("recording", ".amr", path);
-                String filePath = audioFile.getAbsolutePath();
-                FileOutputStream os = new FileOutputStream(filePath);
-                while (isRecording) {
-                    //从bufferSize中读取字节，这时buffer也就是原始数据
-                    int bufferReadResult = audioRecord.read(buffer, 0, bufferSize);
-                    Log.d(TAG, "isRecording==>buffer = " + buffer.toString() + ", num = " + bufferReadResult);
-                    os.write(buffer, 0, bufferReadResult);
-
-                }
-
-                Log.d(TAG, "isRecording==>exit loop");
-                os.close();
-
-                audioRecord.stop();
-                audioRecord.release();
-                audioRecord = null;
-                Log.d(TAG, "isRecording==>clean up");
-                Log.i(TAG, "isRecording==>AudioRecord released!");
-
-                statusTextView.setText("Recording");
-
-                playRecording.setEnabled(false);
-                stopRecording.setEnabled(true);
-                startRecording.setEnabled(false);
-            } catch (IOException e) {
-                e.printStackTrace();
-                Log.e(TAG, "isRecording==>Dump PCM to file failed");
-            }
-
+        if (v == startRecording) {
+            recordMusic(false);
+        } else if (v == recordingAndSend) {
+            recordMusic(true);
         } else if (v == stopRecording) { //停止录制
             isRecording = false;
 
             statusTextView.setText("Ready to Play");
             info.setText("录制完成！文件已保存：" + audioFile.getAbsolutePath()); //录制完成显示音频文件路径
             playRecording.setEnabled(true);
+            recordingAndSend.setEnabled(true);
             stopRecording.setEnabled(false);
             startRecording.setEnabled(true);
 
@@ -311,13 +169,15 @@ public class RecordMusicActivity2 extends Activity implements View.OnClickListen
             try {
                 //初始化播放器
                 player = new MediaPlayer();
-                player.setDataSource(audioFile.getAbsolutePath()); //设置最新录制完的音频文件，准备播放
+                FileInputStream fis = new FileInputStream(audioFile);
+                player.setDataSource(fis.getFD()); //设置最新录制完的音频文件，准备播放
                 player.prepare();
                 if (player != null && audioFile.exists()) {
                     player.start();
                     statusTextView.setText("Playing");
 
                     playRecording.setEnabled(false);
+                    recordingAndSend.setEnabled(false);
                     stopRecording.setEnabled(false);
                     startRecording.setEnabled(false);
                 }
@@ -329,6 +189,7 @@ public class RecordMusicActivity2 extends Activity implements View.OnClickListen
                         statusTextView.setText("Ready");
 
                         playRecording.setEnabled(true);
+                        recordingAndSend.setEnabled(true);
                         stopRecording.setEnabled(false);
                         startRecording.setEnabled(true);
                     }
@@ -346,5 +207,103 @@ public class RecordMusicActivity2 extends Activity implements View.OnClickListen
         }
     }
 
+    private void sendAudioData() {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Thread.sleep(500);
+                    byte[] buffer = new byte[frequence];
+                    int buffersize = AudioRecord.getMinBufferSize(frequence, channelConfig, audioEncoding);
+                    Socket socket = new Socket(SocketUtils.targetIP, SocketUtils.port);
+                    OutputStream outputStream = socket.getOutputStream();
+                    while (socket.isConnected() && isRecording) {
+                        //从bufferSize中读取字节，这时buffer也就是原始数据
+                        int bufferReadResult = audioRecord.read(buffer, 0, buffersize);
+                        outputStream.write(buffer, 0, bufferReadResult);
+                    }
+
+                    outputStream.flush();
+                    outputStream.close();
+
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
+
+
+    }
+
+    /**
+     * 录制音频，或发送
+     * @param isSend 需要发送的标识
+     */
+    private void recordMusic(final boolean isSend) { //开始录制
+        if (!Environment.getExternalStorageState().equals(
+                Environment.MEDIA_MOUNTED)) {
+            Toast.makeText(getApplicationContext(), "SD卡不存在，请插入SD卡！", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        try {
+            Log.i(TAG, "startRecording开始录制。。。。");
+
+            isRecording = true;
+            statusTextView.setText("Recording");
+            playRecording.setEnabled(false);
+            stopRecording.setEnabled(true);
+            startRecording.setEnabled(false);
+            recordingAndSend.setEnabled(false);
+
+            audioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC,
+                    frequence, channelConfig, audioEncoding, bufferSize);
+
+            audioRecord.startRecording(); //开始录制
+            File path = new File(Environment.getExternalStorageDirectory() + "/recordMusic"); //保存录制完成的音频文件夹
+            path.mkdirs();
+            audioFile = File.createTempFile("recording", ".amr", path);
+            final String filePath = audioFile.getAbsolutePath();
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        FileOutputStream os = new FileOutputStream(filePath);
+                        byte[] buffer = new byte[1024];
+                        while (isRecording && audioRecord !=null) {
+                            int readSize = audioRecord.read(buffer, 0, 1024);
+                            Log.d(TAG, "isRecording==>readSize = " + readSize);
+                            os.write(buffer, 0, readSize);
+
+                            if (isSend) sendAudioData();
+                        }
+
+                        Log.d(TAG, "isRecording==>exit loop");
+                        os.close();
+
+                        audioRecord.stop();
+                        audioRecord.release();
+                        Log.d(TAG, "isRecording==>clean up");
+                        Log.i(TAG, "isRecording==>AudioRecord released!");
+
+                    } catch (FileNotFoundException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+
+                }
+            }).start();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            Log.e(TAG, "isRecording==>Dump PCM to file failed");
+        }
+
+    }
+
 
 }
+
