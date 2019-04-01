@@ -4,11 +4,14 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.pm.PackageManager;
 import android.media.AudioFormat;
+import android.media.AudioManager;
 import android.media.AudioRecord;
+import android.media.AudioTrack;
 import android.media.MediaPlayer;
 import android.media.MediaRecorder;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Process;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
@@ -18,8 +21,13 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.whh.recordmusic.R;
+import com.whh.recordmusic.model.Speex;
 import com.whh.recordmusic.utils.SocketUtils;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -239,8 +247,12 @@ public class RecordMusicActivity2 extends Activity implements View.OnClickListen
 
     /**
      * 录制音频，或发送
+     *
      * @param isSend 需要发送的标识
+     *
      */
+
+    Speex speex;
     private void recordMusic(final boolean isSend) { //开始录制
         if (!Environment.getExternalStorageState().equals(
                 Environment.MEDIA_MOUNTED)) {
@@ -264,24 +276,54 @@ public class RecordMusicActivity2 extends Activity implements View.OnClickListen
             audioRecord.startRecording(); //开始录制
             File path = new File(Environment.getExternalStorageDirectory() + "/recordMusic"); //保存录制完成的音频文件夹
             path.mkdirs();
-            audioFile = File.createTempFile("recording", ".amr", path);
+            audioFile = File.createTempFile("recording", ".pcm", path);
             final String filePath = audioFile.getAbsolutePath();
             new Thread(new Runnable() {
                 @Override
                 public void run() {
                     try {
+
                         FileOutputStream os = new FileOutputStream(filePath);
+
+                        //截取音频流，开始压缩
+                        DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(os));
+                        speex = new Speex();
+                        int sizeInShorts = speex.getFrameSize();
+                        short[] audioData = new short[sizeInShorts];
+                        int sizeInBytes = speex.getFrameSize();
+
+
+                        Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);//设置线程的优先级，音频优先级最高
+
                         byte[] buffer = new byte[1024];
-                        while (isRecording && audioRecord !=null) {
+                        while (isRecording && audioRecord != null) {
                             int readSize = audioRecord.read(buffer, 0, 1024);
                             Log.d(TAG, "isRecording==>readSize = " + readSize);
                             os.write(buffer, 0, readSize);
 
-                            if (isSend) sendAudioData();
+                            //开始记录数据
+                            int number = audioRecord.read(audioData, 0, sizeInShorts);
+                            short[] dst = new short[sizeInBytes];
+                            System.arraycopy(audioData, 0, dst, 0, number);
+                            byte[] encoded = new byte[sizeInBytes];
+                            int count = speex.encode(dst, 0, encoded, number);
+                            if (count > 0) {
+                                //记录每次录音得到的数据，与播放录音的时候对应
+                                Data data = new Data();
+                                data.mSize = count;
+                                data.mBuffer = encoded;
+                                mDatas.add(data);
+                                dos.write(encoded, 0, count);
+                            }
+
+//                            if (isSend) sendAudioData();
                         }
 
                         Log.d(TAG, "isRecording==>exit loop");
+                        os.flush();
                         os.close();
+                        dos.flush();
+                        dos.close();
 
                         audioRecord.stop();
                         audioRecord.release();
@@ -302,6 +344,50 @@ public class RecordMusicActivity2 extends Activity implements View.OnClickListen
             Log.e(TAG, "isRecording==>Dump PCM to file failed");
         }
 
+    }
+
+    private static final class Data {
+        private int mSize;//记录每次编码之后的大小，用做解码时设置每次读取的字节大小
+        private byte[] mBuffer;//记录每次编码之后的字节数组，可以用做边录边播放
+    }
+
+
+    private List<Data> mDatas = new ArrayList<Data>(); //录音片段组
+    private void palyAudioStream() {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Thread.sleep(500);
+                    AudioTrack mAudioTrack=new AudioTrack(AudioManager.STREAM_MUSIC, frequence, channelConfig,
+                            audioEncoding, bufferSize, AudioTrack.MODE_STREAM);
+                    DataInputStream dis = new DataInputStream(
+                            new BufferedInputStream(new FileInputStream(audioFile)));
+                    int len = 0;
+                    //根据每次录音得到的数据，进行播放
+                    for(Data data:mDatas) {
+                        byte[] encoded = new byte[data.mSize];
+                        len = dis.read(encoded, 0, data.mSize);
+                        if (len != -1) {
+                            short[] lin = new short[speex.getFrameSize()];
+                            int size = speex.decode(encoded, lin,
+                                    encoded.length);
+                            if (size > 0) {
+                                mAudioTrack.write(lin, 0, size);
+                                mAudioTrack.play();
+                            }
+                        }
+                    }
+
+                } catch (FileNotFoundException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
     }
 
 
