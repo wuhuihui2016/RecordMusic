@@ -5,20 +5,13 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
-import android.util.Log;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintWriter;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
-import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.util.Enumeration;
-
-import static com.whh.recordmusic.model.SocketServer.socket;
 
 /**
  * Created by wuhuihui on 2019/3/26.
@@ -35,108 +28,7 @@ public class SocketUtils {
     public static final int SERVER = 0, CLIENT = 1;
     public static int ID = SERVER; //默认是服务器，0服务器，1用户端
 
-    public static boolean isAudio = false; //音频消息标识
-
-    /**
-     * 通过IP连接另一个手机，实现互通
-     *
-     * @param inetAddress  另一手机的IP，默认端口5555
-     * @param connListener
-     */
-    public static void addConnectListener(final String inetAddress,
-                                          final OnConnectListener connListener) {
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    target = new Socket(inetAddress, port);
-                    target.setSoTimeout(5000); //设置超时时间
-                    if (target != null) {
-                        connListener.onConnect(true);
-                        targetIP = inetAddress;
-                        Log.i(TAG, "连接成功！");
-                    } else connListener.onConnect(false);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }).start();
-    }
-
-    /**
-     * 本机启动后，开始监听其他手机发来的请求或消息
-     * socket监听数据 listen()
-     */
-    public static void addMessageListener(final OnConnectListener connListener,
-                                          final OnMessageListener msgListener) {
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    ServerSocket server = new ServerSocket(port);
-                    Log.i(TAG, "本机已启动，等待被连接...");
-                    target = server.accept(); //接收请求 accept()
-                    targetIP = target.getInetAddress().toString();
-                    if (target != null) {
-                        try {
-                            connListener.onConnect(true);
-                            InputStream in = target.getInputStream();
-                            //得到的是16位进制数，需要解析
-                            byte[] bt = new byte[50];
-                            in.read(bt);
-                            String message = new String(bt, "UTF-8");
-                            if (message != null) {
-                                msgListener.receive(message);
-                            }
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-
-                    } else {
-                        connListener.onConnect(false);
-                        Log.i(TAG, "socket is null");
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    try {
-                        if (socket != null) socket.close();
-                        Log.i(TAG, "关闭连接");
-                    } catch (IOException e1) {
-                        e1.printStackTrace();
-                    }
-                }
-            }
-        }).start();
-    }
-
-    /**
-     * 发送消息
-     */
-    public static void sendMsg(final String message, final OnMessageListener listener) {
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                if (target != null && target.isConnected()) {
-                    try {
-                        PrintWriter out = new PrintWriter(target.getOutputStream());
-                        out.print(message);
-                        out.flush();
-                        Log.i(TAG, "发送消息==>" + message);
-                        listener.sendMsg(true);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                        listener.sendMsg(false);
-                        Log.i(TAG, "消息发送失败，请检查连接是否正常！");
-                    }
-
-                } else {
-                    listener.sendMsg(false);
-                    Log.i(TAG, "消息发送失败，请检查连接是否正常！");
-                }
-            }
-        }).start();
-    }
-
+    public static Socket socket;
 
     /**
      * 获取手机IP

@@ -3,22 +3,15 @@ package com.whh.recordmusic.model;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTrack;
-import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 
 import com.whh.recordmusic.utils.OnMessageListener;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -34,7 +27,6 @@ public class SocketServer {
     private ServerSocket server;
     public static Socket socket; //用户端
     private InputStream in;
-    private String str = null;
     public static Handler sHandler;
 
     /**
@@ -59,24 +51,21 @@ public class SocketServer {
             @Override
             public void run() {
                 try {
-                    socket = server.accept(); //接收请求 accept()
-                    if (socket != null) {
-                        in = socket.getInputStream();
-                        while (socket.isConnected()) {
-                            byte[] bt = new byte[50];
-                            in.read(bt);
-                            str = new String(bt, "UTF-8"); //编码方式  解决收到数据乱码
-                            if (str != null && str != "exit") {
-                                Log.i(TAG, "getInetAddress" + socket.getInetAddress());
-//                                receiveMessage(socket.getInetAddress() + "：" + str + "\n");
-                                receiveAudioData(); //接收音频数据包
-                            } else if (str == null && str == "exit") {
-                                break;  //跳出循环结束socket数据接收
-                            }
+                    if (server != null) {
+                        socket = server.accept(); //接收请求 accept()
+                        if (socket != null) {
+                            in = socket.getInputStream();
+                            while (socket.isConnected()) {
+                                Log.i(TAG, "Server接收消息。。。");
+                                byte[] bt = new byte[50];
+                                in.read(bt);
+                                receiveMessage(socket.getInetAddress() + "：" + new String(bt, "UTF-8") + "\n");
 
-                            Log.i(TAG, "接收消息==>" + str);
-                        }
-                    } else Log.i(TAG, "socket is null");
+                                receiveAudioData(socket); //接收音频数据包
+
+                            }
+                        } else Log.i(TAG, "socket is null");
+                    }
                 } catch (IOException e) {
                     e.printStackTrace();
                     try {
@@ -125,94 +114,36 @@ public class SocketServer {
         sHandler.sendMessage(msg);
     }
 
-    private long alreadyReadByteCount = 0;
-
-    public void receiveAudioData() {
+    /**
+     * 接收audio数据
+     * @param socket
+     */
+    public void receiveAudioData(final Socket socket) {
         try {
-            Socket socket = server.accept();
-            InputStream inputStream = socket.getInputStream();
-            int tmp = 0;
-            byte[] data = new byte[1024];
-            int mMinBufferSize = AudioTrack.getMinBufferSize(44100,AudioFormat.CHANNEL_CONFIGURATION_MONO, AudioFormat.ENCODING_PCM_16BIT);//计算最小缓冲区
+            Log.i(TAG, "开始接收音频数据。。。" + socket.getRemoteSocketAddress());
+            byte[] buffer = new byte[50];
+
+            DataInputStream dis = new DataInputStream(socket.getInputStream());
+            dis.read(buffer);
+
+            Log.i(TAG, "开始接收音频数据。。。" + dis.read(buffer));
+
+            //播放音频数据
+            int mMinBufferSize = AudioTrack.getMinBufferSize(44100, AudioFormat.CHANNEL_CONFIGURATION_MONO, AudioFormat.ENCODING_PCM_16BIT);//计算最小缓冲区
             AudioTrack audioTrack = new AudioTrack(AudioManager.STREAM_MUSIC, 44100, AudioFormat.CHANNEL_CONFIGURATION_MONO,
                     AudioFormat.ENCODING_PCM_16BIT, mMinBufferSize, AudioTrack.MODE_STREAM);
-
-            while ((tmp = inputStream.read(data)) != -1) {
+            while (dis.read(buffer) != -1) {
+                Log.i(TAG, "播放音频数据。。。" + dis.read(buffer));
                 audioTrack.play();
-                audioTrack.write(data, 0, data.length);
+                audioTrack.write(buffer, 0, buffer.length);
             }
+            audioTrack.stop();
+            audioTrack.release();
 
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-    }
-
-    /**
-     * 接收文件
-     */
-    public void receiveFile() {
-        try {
-            InputStream nameStream = socket.getInputStream();
-            InputStreamReader streamReader = new InputStreamReader(nameStream);
-            BufferedReader br = new BufferedReader(streamReader);
-            String fileName = br.readLine();
-            br.close();
-            streamReader.close();
-            nameStream.close();
-            socket.close();
-            sendMessage(null, "正在接收:" + fileName);
-
-            InputStream dataStream = socket.getInputStream();
-            String savePath = Environment.getExternalStorageDirectory().getPath() + "/" + fileName;
-            FileOutputStream file = new FileOutputStream(savePath, false);
-            byte[] buffer = new byte[1024];
-            int size = -1;
-            while ((size = dataStream.read(buffer)) != -1) {
-                file.write(buffer, 0, size);
-            }
-            file.close();
-            dataStream.close();
-            socket.close();
-            sendMessage(null, fileName + "接收完成");
-        } catch (Exception e) {
-            sendMessage(null, "接收错误:\n" + e.getMessage());
-        }
-    }
-
-    /**
-     * 发送文件
-     *
-     * @param fileName
-     * @param path
-     */
-    public void sendFile(String fileName, String path) {
-        try {
-            OutputStream outputName = socket.getOutputStream();
-            OutputStreamWriter outputWriter = new OutputStreamWriter(outputName);
-            BufferedWriter bwName = new BufferedWriter(outputWriter);
-            bwName.write(fileName);
-            bwName.close();
-            outputWriter.close();
-            outputName.close();
-            socket.close();
-            sendMessage(null, "正在发送" + fileName);
-
-            OutputStream outputData = socket.getOutputStream();
-            FileInputStream fileInput = new FileInputStream(path);
-            int size = -1;
-            byte[] buffer = new byte[1024];
-            while ((size = fileInput.read(buffer, 0, 1024)) != -1) {
-                outputData.write(buffer, 0, size);
-            }
-            outputData.close();
-            fileInput.close();
-            socket.close();
-            sendMessage(null, fileName + "  发送完成");
-            sendMessage(null, "文件发送完成!");
-        } catch (Exception e) {
-            sendMessage(null, "发送错误:\n" + e.getMessage());
-        }
     }
 }
 

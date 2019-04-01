@@ -98,9 +98,6 @@ public class SocketServerActivity extends Activity implements OnMessageListener 
                 super.handleMessage(msg);
                 String message = msg.obj.toString();
                 txt.setText(message);
-                if (message.contains("start receiving audio...")){
-                    SocketUtils.isAudio = true;
-                } else SocketUtils.isAudio = false;
             }
         };
 

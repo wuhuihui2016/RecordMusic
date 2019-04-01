@@ -26,8 +26,6 @@ public class SocketClient implements Serializable {
     private final String TAG = "SocketClient";
     private Socket client;
     private Context context;
-    private String site;      //IP
-    private int port;         //端口
     private Thread thread;
     public static Handler cHandler;
     private boolean isClient = false;
@@ -38,7 +36,8 @@ public class SocketClient implements Serializable {
     /**
      * 开启线程建立连接开启客户端
      */
-    public void openClientThread(final OnConnectListener listener) {
+    public void openClientThread(final Context context, final String site, final int port,
+                                 final OnConnectListener listener) {
         thread = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -47,13 +46,14 @@ public class SocketClient implements Serializable {
                     client = new Socket(site, port);
                     client.setSoTimeout(5000); //设置超时时间
                     if (client != null) {
-                        listener.onConnect(true);
+                        listener.onConnect(client, true);
                         SocketUtils.targetIP = site;
+                        SocketUtils.socket = client;
                         isClient = true;
                         forOut();
                         forIn();
                     } else {
-                        listener.onConnect(false);
+                        listener.onConnect(null, false);
                         isClient = false;
                         Toast.makeText(context, "网络连接失败！", Toast.LENGTH_LONG).show();
                     }
@@ -69,19 +69,6 @@ public class SocketClient implements Serializable {
             }
         });
         thread.start();
-    }
-
-    /**
-     * 调用时间类传值
-     *
-     * @param context
-     * @param site
-     * @param port
-     */
-    public void clientValue(Context context, String site, int port) {
-        this.context = context;
-        this.site = site;
-        this.port = port;
     }
 
     /**
