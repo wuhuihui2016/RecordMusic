@@ -4,8 +4,9 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.pm.PackageManager;
 import android.media.AudioFormat;
+import android.media.AudioManager;
 import android.media.AudioRecord;
-import android.media.MediaPlayer;
+import android.media.AudioTrack;
 import android.media.MediaRecorder;
 import android.os.Bundle;
 import android.os.Environment;
@@ -30,6 +31,7 @@ import com.whh.recordmusic.utils.OnMessageListener;
 import com.whh.recordmusic.utils.SocketUtils;
 import com.whh.recordmusic.utils.Utils;
 
+import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -63,12 +65,11 @@ public class SocketClientActivity extends Activity implements View.OnClickListen
 
     private boolean isRecording; //标识当前录制状态
     private AudioRecord audioRecord; //录制器
-    private MediaPlayer player; //播放器
     private File audioFile; //录制完成后保存的AMR文件
 
     //录制音频参数
     int frequence = 44100; //录制频率，单位hz.这里的值注意了，写的不好，可能实例化AudioRecord对象的时候，会出错。我开始写成11025就不行。这取决于硬件设备
-    int channelConfig = AudioFormat.CHANNEL_IN_MONO;
+    int channelConfig = AudioFormat.CHANNEL_OUT_DEFAULT;
     int audioEncoding = AudioFormat.ENCODING_PCM_16BIT;
     int bufferSize = AudioRecord.getMinBufferSize(frequence, channelConfig, audioEncoding);
 
@@ -263,6 +264,7 @@ public class SocketClientActivity extends Activity implements View.OnClickListen
     public void onClick(View v) {
         if (v == recordingAndSend) {
             recordMusic();
+
         } else if (v == stopRecording) { //停止录制
             isRecording = false;
 
@@ -273,42 +275,36 @@ public class SocketClientActivity extends Activity implements View.OnClickListen
             stopRecording.setEnabled(false);
 
         } else if (v == playRecording) { //播放已录制
-            try {
-                //初始化播放器
-                player = new MediaPlayer();
-                FileInputStream fis = new FileInputStream(audioFile);
-                player.setDataSource(fis.getFD()); //设置最新录制完的音频文件，准备播放
-                player.prepare();
-                if (player != null && audioFile.exists()) {
-                    player.start();
-                    statusTextView.setText("Playing");
 
-                    playRecording.setEnabled(false);
-                    recordingAndSend.setEnabled(false);
-                    stopRecording.setEnabled(false);
-                }
+            statusTextView.setText("Playing");
 
-                //设置播放器播放完成事件
-                player.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-                    @Override
-                    public void onCompletion(MediaPlayer mp) {
-                        statusTextView.setText("Ready");
+            playRecording.setEnabled(false);
+            recordingAndSend.setEnabled(true);
+            stopRecording.setEnabled(false);
 
-                        playRecording.setEnabled(true);
-                        recordingAndSend.setEnabled(true);
-                        stopRecording.setEnabled(false);
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        //播放音频数据
+                        DataInputStream dis = new DataInputStream(new FileInputStream(audioFile));
+                        AudioTrack audioTrack = new AudioTrack(AudioManager.STREAM_MUSIC, frequence, channelConfig,
+                                audioEncoding, bufferSize, AudioTrack.MODE_STREAM);
+                        byte[] buffer = new byte[1024];
+                        while (dis.read(buffer) != -1) {
+                            Log.i(TAG, "播放音频数据。。。" + dis.read(buffer));
+                            audioTrack.play();
+                            audioTrack.write(buffer, 0, buffer.length);
+                        }
+                        audioTrack.stop();
+                        audioTrack.release();
+                    } catch (FileNotFoundException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        e.printStackTrace();
                     }
-                });
-            } catch (IllegalArgumentException e) {
-                e.printStackTrace();
-            } catch (SecurityException e) {
-                e.printStackTrace();
-            } catch (IllegalStateException e) {
-                e.printStackTrace();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
+                }
+            }).start();
         }
     }
 
@@ -335,7 +331,7 @@ public class SocketClientActivity extends Activity implements View.OnClickListen
                     frequence, channelConfig, audioEncoding, bufferSize);
 
             audioRecord.startRecording(); //开始录制
-            File path = new File(Environment.getExternalStorageDirectory() + "/recordMusic"); //保存录制完成的音频文件夹
+            File path = new File(Utils.dirPath); //保存录制完成的音频文件夹
             path.mkdirs();
             audioFile = File.createTempFile("recording", ".pcm", path);
             final String filePath = audioFile.getAbsolutePath();
@@ -347,7 +343,7 @@ public class SocketClientActivity extends Activity implements View.OnClickListen
                         FileOutputStream os = new FileOutputStream(filePath);
 
                         //向服务器发送数据
-                        client.sendMsg("1234567890", new OnMessageListener() {
+                        client.sendMsg("1,2,3,receiving audio...", new OnMessageListener() {
                             @Override
                             public void sendMsg(boolean isSucessful) {
                                 if (isSucessful) {
@@ -364,31 +360,16 @@ public class SocketClientActivity extends Activity implements View.OnClickListen
                             }
                         });
 
-
                         DataOutputStream dos = null;
                         if (getSocket != null && !getSocket.isClosed()) {
                             dos = new DataOutputStream(getSocket.getOutputStream());
-                            byte[] buffer = new byte[50];
-                            while (isRecording && audioRecord != null) {
+                            byte[] buffer = new byte[1024];
+                            while (isRecording) {
                                 int readSize = audioRecord.read(buffer, 0, buffer.length);
                                 if (AudioRecord.ERROR_INVALID_OPERATION != readSize) {
                                     os.write(buffer); //写入文件
-
                                     Log.i(TAG, "向服务器发送数据==>socket写入数据");
                                     dos.write(buffer);
-
-                                    //播放音频数据
-//                                DataInputStream dis = new DataInputStream(new FileInputStream(audioFile));
-//                                int mMinBufferSize = AudioTrack.getMinBufferSize(44100, AudioFormat.CHANNEL_CONFIGURATION_MONO, AudioFormat.ENCODING_PCM_16BIT);//计算最小缓冲区
-//                                AudioTrack audioTrack = new AudioTrack(AudioManager.STREAM_MUSIC, 44100, AudioFormat.CHANNEL_CONFIGURATION_MONO,
-//                                        AudioFormat.ENCODING_PCM_16BIT, mMinBufferSize, AudioTrack.MODE_STREAM);
-//                                while (dis.read(buffer) != -1) {
-//                                    Log.i(TAG, "播放音频数据。。。" + dis.read(buffer));
-//                                    audioTrack.play();
-//                                    audioTrack.write(buffer, 0, buffer.length);
-//                                }
-//                                audioTrack.stop();
-//                                audioTrack.release();
                                 }
 
                             }

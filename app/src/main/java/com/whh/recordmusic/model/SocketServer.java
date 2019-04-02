@@ -2,6 +2,7 @@ package com.whh.recordmusic.model;
 
 import android.media.AudioFormat;
 import android.media.AudioManager;
+import android.media.AudioRecord;
 import android.media.AudioTrack;
 import android.os.Handler;
 import android.os.Message;
@@ -9,6 +10,7 @@ import android.util.Log;
 
 import com.whh.recordmusic.utils.OnMessageListener;
 
+import java.io.BufferedInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -121,17 +123,24 @@ public class SocketServer {
     public void receiveAudioData(final Socket socket) {
         try {
             Log.i(TAG, "开始接收音频数据。。。" + socket.getRemoteSocketAddress());
-            byte[] buffer = new byte[50];
-
-            DataInputStream dis = new DataInputStream(socket.getInputStream());
-            dis.read(buffer);
-
-            Log.i(TAG, "开始接收音频数据。。。" + dis.read(buffer));
 
             //播放音频数据
-            int mMinBufferSize = AudioTrack.getMinBufferSize(44100, AudioFormat.CHANNEL_CONFIGURATION_MONO, AudioFormat.ENCODING_PCM_16BIT);//计算最小缓冲区
-            AudioTrack audioTrack = new AudioTrack(AudioManager.STREAM_MUSIC, 44100, AudioFormat.CHANNEL_CONFIGURATION_MONO,
-                    AudioFormat.ENCODING_PCM_16BIT, mMinBufferSize, AudioTrack.MODE_STREAM);
+            byte[] buffer = new byte[1024];
+            int frequence = 44100; //录制频率，单位hz.这里的值注意了，写的不好，可能实例化AudioRecord对象的时候，会出错。我开始写成11025就不行。这取决于硬件设备
+            int channelConfig = AudioFormat.CHANNEL_OUT_DEFAULT;
+            int audioEncoding = AudioFormat.ENCODING_PCM_16BIT;
+            int bufferSize = AudioRecord.getMinBufferSize(frequence, channelConfig, audioEncoding);
+
+            DataInputStream dis = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
+            dis.read(buffer);
+            AudioTrack audioTrack = new AudioTrack(AudioManager.STREAM_MUSIC, frequence, channelConfig,
+                    audioEncoding, bufferSize, AudioTrack.MODE_STREAM);
+//            AudioFormat.CHANNEL_CONFIGURATION_MONO   单通道
+//            AudioFormat.CHANNEL_CONFIGURATION_STEREO 双通道
+//            AudioFormat.CHANNEL_CONFIGURATION_INVALID 错误的音频通道掩码
+//            AudioFormat.CHANNEL_CONFIGURATION_DEFAULT 默认通道
+//            AudioTrack.MODE_STATIC：在播放发生之前将所有的音频数据转移到AudioTrack对象。
+//            AudioTrack.MODE_STREAM:在播放的同时将音频数据持续的转移到AudioTrack对象。
             while (dis.read(buffer) != -1) {
                 Log.i(TAG, "播放音频数据。。。" + dis.read(buffer));
                 audioTrack.play();
