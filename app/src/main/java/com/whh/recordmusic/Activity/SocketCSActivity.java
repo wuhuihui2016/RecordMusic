@@ -7,6 +7,10 @@ import android.view.View;
 
 import com.whh.recordmusic.R;
 import com.whh.recordmusic.utils.SocketUtils;
+import com.whh.recordmusic.utils.Utils;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Created by wuhuihui on 2019/3/26.
@@ -38,5 +42,16 @@ public class SocketCSActivity extends Activity {
                 startActivity(new Intent(getApplicationContext(), SocketServerActivity.class));
             }
         });
+
+        List <Integer> list = new ArrayList<>();
+        list.add(1);
+        list.add(4);
+        list.add(2);
+        list.add(1);
+        list.add(3);
+        list.add(2);
+        list.add(1);
+        list.add(4);
+        Utils.comparable(list);
     }
 }
